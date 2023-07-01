@@ -1,0 +1,79 @@
+pragma solidity >= 0.7.0 < 0.9.0;
+
+contract Escrow{
+    address public seller;
+    address public buyer;
+    address public arbiter;
+    uint public amount;
+    bool public Isconfirmed;
+    bool public Iscomplete;
+
+    mapping (address => bool) public approval;
+
+    constructor(address _seller,address _buyer,address _arbiter) payable {
+        seller = _seller;
+        buyer = _buyer;
+        arbiter = _arbiter;
+        amount = msg.value;
+        Iscomplete = false;
+        Isconfirmed = false;
+    }
+
+    event FundsDeposited(address depositor, uint amount);
+    event ApprovalReceived(address approver);
+    event FundsReleased(address recipient, uint amount);
+    event FundsRefunded(address recipient, uint amount);
+
+    modifier OnlyBuyer(){
+        require(msg.sender == buyer,"ONLY BUYER CAN CALL THIS FUNCTION");
+        _;
+    }
+
+    modifier OnlySeller(){
+        require(msg.sender == seller,"ONLY SELLER CAN CALL THIS FUNCTION");
+        _;
+    }
+
+    modifier OnlyArbiter(){
+        require(msg.sender == arbiter,"ONLY ARBITER CAN CALL THE FUNCTION");
+        _;
+    }
+
+    function depositFund() payable public OnlyBuyer{
+        require(msg.value == amount,"NOT ENOUGH MONEY");
+        emit FundsDeposited(buyer,amount);
+    }
+
+    function ConfirmDilevery() public OnlyBuyer{
+        Isconfirmed = true;
+        approval[buyer] = true;
+    }
+
+    function approvalOfReleaseFund() public OnlySeller{
+        require(Isconfirmed,"REQUIRE CONFIRMATION FROM BUYER");
+        approval[msg.sender] = true;
+
+        emit ApprovalReceived(msg.sender);
+
+        if(approval[seller] && approval[buyer])
+        {
+            releaseFund();
+        }
+    }
+
+      function refundFunds() public OnlyArbiter {
+        require(!Iscomplete, "Transaction is already completed.");
+
+        Iscomplete = true;
+        payable(buyer).transfer(amount);
+        emit FundsRefunded(buyer, amount);
+    }
+
+    function releaseFund() private {
+        require(!Iscomplete, "Transaction is already completed.");
+
+        Iscomplete = true;
+        payable(seller).transfer(amount);
+        emit FundsReleased(seller, amount);
+    }
+}
